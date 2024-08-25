@@ -1,4 +1,4 @@
-# LM Studio Chat WebUI
+# LM Studio Chat WebUI(unofficial)
 
 This is a simple, browser-based chat interface for interacting with your LM Studio server. It allows you to connect to your locally hosted LM Studio model and chat with it from any device with a web browser, including mobile phones.
 
