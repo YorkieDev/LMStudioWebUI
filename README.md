@@ -18,7 +18,7 @@ This is a simple, browser-based chat interface for interacting with your LM Stud
 2. Save it to a location on your computer that you can easily access.
 
 ### For Mobile Users
-
+This works out of the box on Android devices. For iOS you need to open the file in Microsoft Edge or another browser. Safari/Chrome do not work. 
 There are several ways to get the `lmstudiowebui.html` file on your mobile device:
 
 1. **Direct Download**: 
