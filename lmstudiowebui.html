@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LM Studio Chat</title>
+    <style>
+        :root {
+            --background-color: #1e1e1e;
+            --text-color: #ffffff;
+            --input-background: #2d2d2d;
+            --user-message-color: #2b5278;
+            --assistant-message-color: #2d2d2d;
+            --button-color: #4a90e2;
+            --accent-color: #4caf50;
+        }
+        body, html {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        #server-url-container {
+            padding: 0.5rem;
+            background-color: var(--input-background);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #server-url {
+            flex-grow: 1;
+            padding: 0.5rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #4a5568;
+            border-radius: 0.25rem;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-size: 0.9rem;
+        }
+        #connect-button {
+            padding: 0.5rem 1rem;
+            background-color: var(--button-color);
+            color: var(--text-color);
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        #connection-status {
+            width: 100%;
+            text-align: center;
+            padding: 0.25rem;
+            font-size: 0.8rem;
+            background-color: var(--input-background);
+            color: #888;
+        }
+        #chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            max-width: 85%;
+            margin-bottom: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .user-message {
+            align-self: flex-end;
+            background-color: var(--user-message-color);
+            color: #e6f2ff;
+        }
+        .assistant-message {
+            align-self: flex-start;
+            background-color: var(--assistant-message-color);
+            color: var(--text-color);
+        }
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+            font-size: 0.8rem;
+        }
+        .message-model {
+            font-size: 0.7rem;
+            color: #888;
+            margin-bottom: 0.25rem;
+        }
+        .message-content {
+            margin-bottom: 0.25rem;
+        }
+        .message-metrics {
+            font-size: 0.7rem;
+            color: #888;
+        }
+        #input-container {
+            padding: 0.5rem;
+            background-color: var(--input-background);
+            border-top: 1px solid #333;
+            display: flex;
+            align-items: center;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 0.5rem;
+            border: 1px solid #4a5568;
+            border-radius: 1.5rem;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-size: 0.9rem;
+        }
+        #user-input::placeholder {
+            color: #4a5568;
+        }
+        #send-button {
+            background-color: var(--button-color);
+            color: var(--text-color);
+            border: none;
+            border-radius: 50%;
+            width: 2.5rem;
+            height: 2.5rem;
+            margin-left: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #send-button svg {
+            width: 1.2rem;
+            height: 1.2rem;
+        }
+        @media (max-width: 480px) {
+            .message {
+                max-width: 90%;
+            }
+            #server-url-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            #server-url, #connect-button {
+                width: 100%;
+                margin-right: 0;
+                margin-bottom: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="server-url-container">
+            <input type="text" id="server-url" placeholder="Enter LM Studio server address">
+            <button id="connect-button">Connect</button>
+        </div>
+        <div id="connection-status">Disconnected</div>
+        <div id="chat-container"></div>
+        <div id="input-container">
+            <input type="text" id="user-input" placeholder="Type a message..." disabled>
+            <button id="send-button" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const serverUrlInput = document.getElementById('server-url');
+        const connectButton = document.getElementById('connect-button');
+        const connectionStatus = document.getElementById('connection-status');
+        const sendButton = document.getElementById('send-button');
+
+        let isConnected = false;
+        let currentModel = '';
+
+        function addMessage(content, isUser, metrics = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', isUser ? 'user-message' : 'assistant-message');
+            
+            const headerDiv = document.createElement('div');
+            headerDiv.classList.add('message-header');
+            headerDiv.textContent = isUser ? 'You' : 'Assistant';
+            messageDiv.appendChild(headerDiv);
+
+            if (!isUser && currentModel) {
+                const modelDiv = document.createElement('div');
+                modelDiv.classList.add('message-model');
+                modelDiv.textContent = currentModel;
+                messageDiv.appendChild(modelDiv);
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('message-content');
+            contentDiv.textContent = content;
+            messageDiv.appendChild(contentDiv);
+
+            if (metrics) {
+                const metricsDiv = document.createElement('div');
+                metricsDiv.classList.add('message-metrics');
+                metricsDiv.textContent = metrics;
+                messageDiv.appendChild(metricsDiv);
+            }
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function connectToServer() {
+            const serverUrl = serverUrlInput.value.trim();
+            if (!serverUrl) {
+                updateConnectionStatus('Please enter a valid server address', false);
+                return;
+            }
+
+            try {
+                updateConnectionStatus('Connecting...', false);
+                const response = await fetch(`${serverUrl}/v1/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Server response was not ok');
+                }
+
+                const data = await response.json();
+                if (data && data.data && data.data.length > 0) {
+                    currentModel = data.data[0].id;
+                    isConnected = true;
+                    updateConnectionStatus('Connected', true);
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                    addMessage('Connected to LM Studio server. You can start chatting now!', false);
+                } else {
+                    throw new Error('No models available');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                updateConnectionStatus('Failed to connect', false);
+                addMessage('Error: Unable to connect to the LM Studio server. Please check the address and try again.', false);
+            }
+        }
+
+        function updateConnectionStatus(message, connected) {
+            connectionStatus.textContent = message;
+            connectionStatus.style.color = connected ? 'var(--accent-color)' : '#f44336';
+            connectButton.textContent = connected ? 'Disconnect' : 'Connect';
+            serverUrlInput.disabled = connected;
+            userInput.disabled = !connected;
+            sendButton.disabled = !connected;
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message && isConnected) {
+                addMessage(message, true);
+                userInput.value = '';
+                userInput.disabled = true;
+                sendButton.disabled = true;
+
+                const serverUrl = serverUrlInput.value.trim();
+                const startTime = performance.now();
+
+                try {
+                    const response = await fetch(`${serverUrl}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: currentModel,
+                            messages: [
+                                { role: 'system', content: 'You are a helpful assistant.' },
+                                { role: 'user', content: message }
+                            ],
+                            temperature: 0.7,
+                            max_tokens: -1,
+                            stream: false
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Server response was not ok');
+                    }
+
+                    const data = await response.json();
+                    const endTime = performance.now();
+                    const botReply = data.choices[0].message.content;
+                    const totalTokens = data.usage.total_tokens;
+                    const timeElapsed = ((endTime - startTime) / 1000).toFixed(2);
+                    const stopReason = data.choices[0].finish_reason === 'stop' ? 'eosFound' : data.choices[0].finish_reason;
+                    const metrics = `${totalTokens} tokens • ${timeElapsed}s • Stop: ${stopReason}`;
+                    addMessage(botReply, false, metrics);
+                } catch (error) {
+                    console.error('Error:', error);
+                    addMessage('Error: Unable to get a response from the server. Please try again.', false);
+                    isConnected = false;
+                    updateConnectionStatus('Disconnected', false);
+                } finally {
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                    userInput.focus();
+                }
+            }
+        }
+
+        connectButton.addEventListener('click', () => {
+            if (isConnected) {
+                isConnected = false;
+                updateConnectionStatus('Disconnected', false);
+                userInput.disabled = true;
+                sendButton.disabled = true;
+                addMessage('Disconnected from LM Studio server.', false);
+                currentModel = '';
+            } else {
+                connectToServer();
+            }
+        });
+
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        sendButton.addEventListener('click', sendMessage);
+
+        // Initialize
+        serverUrlInput.focus();
+    </script>
+</body>
+</html>
